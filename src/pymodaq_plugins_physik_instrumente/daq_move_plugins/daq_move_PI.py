@@ -4,6 +4,7 @@ import numpy as np
 from easydict import EasyDict as edict
 from pipython import GCSDevice
 import serial.tools.list_ports as list_ports
+from pipython.pidevice.gcserror import GCSError
 
 from pymodaq.control_modules.move_utility_classes import DAQ_Move_base, main, comon_parameters_fun
 from pymodaq.utils.daq_utils import ThreadCommand, getLineInfo
@@ -32,7 +33,7 @@ class DAQ_Move_PI(DAQ_Move_base):
     """
 
     _controller_units = 'mm'  # dependent on the stage type so to be updated accordingly using self.controller_units = new_unit
-    gcs_device = GCSDevice()
+    gcs_device = GCSDevice("E-816")
     devices = gcs_device.EnumerateUSB()
     devices.extend(gcs_device.EnumerateTCPIPDevices())
 
@@ -117,7 +118,7 @@ class DAQ_Move_PI(DAQ_Move_base):
             self.close()
         except:
             pass
-        return GCSDevice()
+        return GCSDevice("E-816")
 
     def connect_device(self):
         if not self.settings['dc_options', 'is_daisy']:  # simple connection
@@ -164,13 +165,18 @@ class DAQ_Move_PI(DAQ_Move_base):
         # check servo status:
         self.settings.child('closed_loop').setValue(
             self.controller.qSVO(self.controller.axes[0])[self.controller.axes[0]])
+        try:
+            self.set_axis_limits(self.get_axis_limits())
+        except GCSError:
+            pass
 
-        self.set_axis_limits(self.get_axis_limits())
-
-        # get units
-        if hasattr(self.controller, 'qSPA'):
-            self.controller_units = \
-                self.controller.qSPA(self.controller.axes[0], 0x07000601)[self.controller.axes[0]][0x07000601]
+        try:
+            # get units
+            if hasattr(self.controller, 'qSPA'):
+                self.controller_units = \
+                    self.controller.qSPA(self.controller.axes[0], 0x07000601)[self.controller.axes[0]][0x07000601]
+        except GCSError:
+            pass
 
         info = "connected on device:{} /".format(self.device) + self.controller.qIDN()
         initialized = True
